@@ -1,0 +1,90 @@
+# Bakery Simulation Configuration File
+
+# Product variety
+num_bread_categories = 3
+num_sandwich_types = 5
+num_cake_flavors = 4
+num_sweets_flavors = 6
+num_sweet_patisseries = 4
+num_savory_patisseries = 3
+
+# Staff counts
+num_chefs = 10
+num_bakers = 8
+num_sellers = 3
+num_supply_chain = 2
+
+# Simulation thresholds
+max_complaints = 10
+max_frustrated_customers = 15
+max_missing_items_requests = 20
+profit_threshold = 500.0
+simulation_time_minutes = 30
+
+# Production timing parameters (in seconds)
+chef_production_time_min = 2
+chef_production_time_max = 10
+baker_time_min = 5
+baker_time_max = 15
+
+# Customer behavior parameters
+customer_arrival_min = 2
+customer_arrival_max = 10
+customer_patience = 60
+quality_threshold = 65
+complaint_probability = 0.2
+leave_on_complaint_probability = 0.5
+
+# Supply min/max quantities
+supply_min_0 = 15  # SUPPLY_WHEAT
+supply_max_0 = 60
+supply_min_1 = 10  # SUPPLY_YEAST
+supply_max_1 = 40
+supply_min_2 = 12  # SUPPLY_BUTTER
+supply_max_2 = 45
+supply_min_3 = 15  # SUPPLY_MILK
+supply_max_3 = 50
+supply_min_4 = 20  # SUPPLY_SUGAR_SALT
+supply_max_4 = 70
+supply_min_5 = 15  # SUPPLY_SWEET_ITEMS
+supply_max_5 = 60
+supply_min_6 = 10  # SUPPLY_CHEESE_SALAMI
+supply_max_6 = 45
+
+# Prices for items (format: price_<item_type>_<flavor> = price)
+# Bread prices
+price_bread_0 = 2.50  # Regular bread
+price_bread_1 = 3.00  # Whole grain bread
+price_bread_2 = 3.50  # Sourdough bread
+
+# Cake prices
+price_cake_0 = 15.00  # Chocolate cake
+price_cake_1 = 16.50  # Vanilla cake
+price_cake_2 = 18.00  # Red velvet cake
+price_cake_3 = 20.00  # Carrot cake
+
+# Sandwich prices
+price_sandwich_0 = 5.00  # Ham and cheese
+price_sandwich_1 = 5.50  # Turkey club
+price_sandwich_2 = 6.00  # Veggie delight
+price_sandwich_3 = 6.50  # BLT
+price_sandwich_4 = 7.00  # Tuna sandwich
+
+# Sweets prices
+price_sweets_0 = 2.50  # Chocolate chip cookie
+price_sweets_1 = 2.75  # Oatmeal raisin cookie
+price_sweets_2 = 3.00  # Macaron
+price_sweets_3 = 3.50  # Brownie
+price_sweets_4 = 4.00  # Cupcake
+price_sweets_5 = 4.50  # Muffin
+
+# Sweet patisserie prices
+price_sweet_patisserie_0 = 4.00  # Eclair
+price_sweet_patisserie_1 = 4.50  # Fruit tart
+price_sweet_patisserie_2 = 5.00  # Cream puff
+price_sweet_patisserie_3 = 5.50  # Danish pastry
+
+# Savory patisserie prices
+price_savory_patisserie_0 = 3.50  # Cheese croissant
+price_savory_patisserie_1 = 4.00  # Spinach quiche
+price_savory_patisserie_2 = 4.50  # Ham and cheese croissant
