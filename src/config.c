@@ -150,7 +150,8 @@ int load_config(const char *filename, BakeryConfig *config) {
                 config->quality_threshold = atoi(ptr);
             } else if (strcmp(key, "complaint_probability") == 0) {
                 config->complaint_probability = atof(ptr);
-            } else if (strcmp(key, "leave_on_complaint_probability") == 0) {
+            } 
+            else if (strcmp(key, "leave_on_complaint_probability") == 0) {
                 config->leave_on_complaint_probability = atof(ptr);
             } else if (strncmp(key, "supply_min_", 11) == 0) {
                 int index = atoi(key + 11);
@@ -216,18 +217,18 @@ void init_bakery_state(const BakeryConfig *config) {
         bakery_state->supplies[i] = 0;
     }
     
-    // Distribute chefs among teams
-    int total_teams = 6;  // Number of chef teams
-    int chefs_per_team = config->num_chefs / total_teams;
-    int extra_chefs = config->num_chefs % total_teams;
-    
-    for (int i = TEAM_PASTE; i <= TEAM_SAVORY_PATISSERIE; i++) {
-        bakery_state->chefs_per_team[i] = chefs_per_team;
-        if (extra_chefs > 0) {
-            bakery_state->chefs_per_team[i]++;
-            extra_chefs--;
-        }
+// Distribute chefs among teams
+int total_teams = 7;  
+int chefs_per_team = config->num_chefs / total_teams;
+int extra_chefs = config->num_chefs % total_teams;
+
+for (int i = TEAM_PASTE; i <= TEAM_BREAD; i++) {  
+    bakery_state->chefs_per_team[i] = chefs_per_team;
+    if (extra_chefs > 0) {
+        bakery_state->chefs_per_team[i]++;
+        extra_chefs--;
     }
+}
     
     // Distribute bakers among teams
     total_teams = 3;  // Number of baker teams
@@ -235,9 +236,9 @@ void init_bakery_state(const BakeryConfig *config) {
     int extra_bakers = config->num_bakers % total_teams;
     
     for (int i = TEAM_BAKE_CAKES_SWEETS; i <= TEAM_BAKE_BREAD; i++) {
-        bakery_state->chefs_per_team[i] = bakers_per_team;
+        bakery_state->bakers_per_team[i] = bakers_per_team;
         if (extra_bakers > 0) {
-            bakery_state->chefs_per_team[i]++;
+            bakery_state->bakers_per_team[i]++;
             extra_bakers--;
         }
     }

@@ -12,6 +12,9 @@ void simulate_chef(int id, TeamType team, const BakeryConfig *config) {
     log_message("Chef %d on team %d started", id, team);
     
     while (bakery_state->is_running) {
+        // Check for messages that might affect this chef
+        process_chef_messages(id, &team);
+        
         // Check if we have the ingredients we need
         if (!check_ingredients(team)) {
             // No ingredients, wait and try again
@@ -50,6 +53,11 @@ int check_ingredients(TeamType team) {
                      bakery_state->supplies[SUPPLY_YEAST] > 0 &&
                      bakery_state->supplies[SUPPLY_BUTTER] > 0 &&
                      bakery_state->supplies[SUPPLY_MILK] > 0);
+            break;
+        case TEAM_BREAD:
+            // Need wheat, yeast, water (always available)
+            result = (bakery_state->supplies[SUPPLY_WHEAT] > 0 &&
+                     bakery_state->supplies[SUPPLY_YEAST] > 0);
             break;
             
         case TEAM_CAKE:
@@ -100,7 +108,7 @@ ItemType get_chef_item_type(TeamType team) {
     switch (team) {
         case TEAM_PASTE:
             return ITEM_PASTE;
-            case TEAM_BREAD:
+        case TEAM_BREAD:
             return ITEM_BREAD;
         case TEAM_CAKE:
             return ITEM_CAKE;
@@ -299,4 +307,32 @@ int produce_item(TeamType team, int chef_id, const BakeryConfig *config) {
                 chef_id, item_type, flavor, quality);
     
     return 0;
+}
+
+// Process chef-specific messages
+void process_chef_messages(int chef_id, TeamType *team) {
+    Message msg;
+    
+    // Check for reassignment messages
+    while (msgrcv(msg_id, &msg, sizeof(Message) - sizeof(long), 1, IPC_NOWAIT) != -1) {
+        if (msg.msg_type == MSG_CHEF_REASSIGNMENT) {
+            // Check if this affects our team
+            if (*team == msg.data.reassignment.from_team || 
+                *team == msg.data.reassignment.to_team) {
+                
+                log_message("Chef %d received reassignment message", chef_id);
+                
+                // Update team if we've been reassigned
+                if (*team == msg.data.reassignment.from_team) {
+                    *team = msg.data.reassignment.to_team;
+                    log_message("Chef %d reassigned to team %d", chef_id, *team);
+                }
+            }
+        }
+    }
+    
+    // Clear errno if we only got ENOMSG (no message available)
+    if (errno == ENOMSG) {
+        errno = 0;
+    }
 }

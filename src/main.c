@@ -41,7 +41,8 @@ void sigint_handler(int signum) {
                          bakery_state->chefs_per_team[TEAM_SANDWICH] +
                          bakery_state->chefs_per_team[TEAM_SWEETS] +
                          bakery_state->chefs_per_team[TEAM_SWEET_PATISSERIE] +
-                         bakery_state->chefs_per_team[TEAM_SAVORY_PATISSERIE]; i++) {
+                         bakery_state->chefs_per_team[TEAM_SAVORY_PATISSERIE] +
+                         bakery_state->chefs_per_team[TEAM_BREAD] ; i++) {
             if (chef_pids[i] > 0) {
                 kill(chef_pids[i], SIGTERM);
             }
@@ -111,7 +112,7 @@ int main(int argc, char *argv[]) {
     }
     
     // Initialize bakery state
-    initialize_bakery(&config);
+    init_bakery_state(&config);
     
     printf("Starting bakery simulation with:\n");
     printf("- %d chef(s)\n", config.num_chefs);
@@ -136,7 +137,7 @@ int main(int argc, char *argv[]) {
     
     // Create chef processes
     int chef_id = 0;
-    for (int team = TEAM_PASTE; team <= TEAM_SAVORY_PATISSERIE; team++) {
+    for (int team = TEAM_PASTE; team <= TEAM_BREAD; team++) {
         for (int i = 0; i < bakery_state->chefs_per_team[team]; i++) {
             pid_t pid = fork();
             if (pid == 0) {
@@ -212,7 +213,7 @@ int main(int argc, char *argv[]) {
     while (1) {
         // Check if simulation should end
         check_simulation_end_conditions(&config);
-        
+        process_messages();
         // Adjust production priorities periodically
         adjust_production_priorities();
         

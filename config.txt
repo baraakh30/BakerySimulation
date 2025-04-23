@@ -19,7 +19,7 @@ max_complaints = 10
 max_frustrated_customers = 15
 max_missing_items_requests = 20
 profit_threshold = 500.0
-simulation_time_minutes = 30
+simulation_time_minutes = 5
 
 # Production timing parameters (in seconds)
 chef_production_time_min = 2

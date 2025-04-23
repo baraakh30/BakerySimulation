@@ -176,7 +176,7 @@ void draw_bakery_state(void) {
     y_pos -= 20;
     
     // Chefs
-    for (int team = TEAM_PASTE; team <= TEAM_SAVORY_PATISSERIE; team++) {
+    for (int team = TEAM_PASTE; team <= TEAM_BREAD; team++) {
         char team_name[30];
         switch (team) {
             case TEAM_PASTE: strcpy(team_name, "Paste"); break;
@@ -185,6 +185,7 @@ void draw_bakery_state(void) {
             case TEAM_SWEETS: strcpy(team_name, "Sweets"); break;
             case TEAM_SWEET_PATISSERIE: strcpy(team_name, "Sweet Patisserie"); break;
             case TEAM_SAVORY_PATISSERIE: strcpy(team_name, "Savory Patisserie"); break;
+            case TEAM_BREAD: strcpy(team_name, "Bread"); break;
             default: strcpy(team_name, "Unknown"); break;
         }
         

@@ -165,5 +165,5 @@ double random_float(void);
 
 // Logging function
 void log_message(const char *format, ...);
-
+void process_messages();
 #endif

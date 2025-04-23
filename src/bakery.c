@@ -7,48 +7,6 @@
 #include <signal.h>
 #include <sys/time.h>
 
-// Initialize bakery state based on configuration
-void initialize_bakery(const BakeryConfig *config) {
-    memset(bakery_state, 0, sizeof(BakeryState));
-    
-    bakery_state->is_running = 1;
-    bakery_state->start_time = time(NULL);
-    
-    // Initialize thresholds from config
-    bakery_state->max_complaints = config->max_complaints;
-    bakery_state->max_frustrated_customers = config->max_frustrated_customers;
-    bakery_state->max_missing_items_requests = config->max_missing_items_requests;
-    bakery_state->profit_threshold = config->profit_threshold;
-    bakery_state->simulation_time_minutes = config->simulation_time_minutes;
-    
-    // Distribute chefs and bakers among teams based on config
-    int chefs_per_team = config->num_chefs / (TEAM_SAVORY_PATISSERIE + 1); // Distribute evenly initially
-    for (int i = TEAM_PASTE; i <= TEAM_SAVORY_PATISSERIE; i++) {
-        bakery_state->chefs_per_team[i] = chefs_per_team;
-    }
-    
-    int bakers_per_team = config->num_bakers / 3; // Three baker teams
-    bakery_state->bakers_per_team[TEAM_BAKE_CAKES_SWEETS] = bakers_per_team;
-    bakery_state->bakers_per_team[TEAM_BAKE_PATISSERIES] = bakers_per_team;
-    bakery_state->bakers_per_team[TEAM_BAKE_BREAD] = bakers_per_team;
-    
-    bakery_state->supply_employees = config->num_supply_chain;
-    bakery_state->sellers = config->num_sellers;
-    
-    // Initialize with some base supplies
-    for (int i = 0; i < SUPPLY_COUNT; i++) {
-        bakery_state->supplies[i] = (config->supply_min[i] + config->supply_max[i]) / 2;
-    }
-    
-    log_message("Bakery initialized with %d chefs, %d bakers, %d supply chain employees, and %d sellers",
-        config->num_chefs, config->num_bakers, config->num_supply_chain, config->num_sellers);
-}
-
-// Main simulation loop
-void run_simulation(const BakeryConfig *config) {
-    // Nothing to do here, as processes are started in main.c
-    // This is just a placeholder for potential future control logic
-}
 
 // Stop the simulation and signal all processes to terminate
 void stop_simulation(void) {
@@ -131,13 +89,7 @@ void reassign_chefs(TeamType from_team, TeamType to_team, int num_chefs) {
     sem_unlock(0);
 }
 
-// Handle a customer complaint
-void handle_customer_complaint(int customer_id) {
-    sem_lock(0);
-    bakery_state->customer_complaints++;
-    log_message("Customer %d complained, total complaints: %d", customer_id, bakery_state->customer_complaints);
-    sem_unlock(0);
-}
+
 
 // Check if an item is available
 int check_item_availability(ItemType item_type, int flavor) {
@@ -164,25 +116,27 @@ int can_produce_item(TeamType team) {
     switch (team) {
         case TEAM_PASTE:
             can_produce = (bakery_state->supplies[SUPPLY_WHEAT] > 0 && 
-                           bakery_state->supplies[SUPPLY_YEAST] > 0);
+                          bakery_state->supplies[SUPPLY_YEAST] > 0 &&
+                          bakery_state->supplies[SUPPLY_BUTTER] > 0 &&
+                          bakery_state->supplies[SUPPLY_MILK] > 0);
             break;
         case TEAM_BREAD:
             can_produce = (bakery_state->supplies[SUPPLY_WHEAT] > 0 && 
-                           bakery_state->supplies[SUPPLY_YEAST] > 0);
+                          bakery_state->supplies[SUPPLY_YEAST] > 0);
             break;
         case TEAM_CAKE:
             can_produce = (bakery_state->supplies[SUPPLY_WHEAT] > 0 && 
-                           bakery_state->supplies[SUPPLY_SUGAR_SALT] > 0 &&
-                           bakery_state->supplies[SUPPLY_BUTTER] > 0 &&
-                           bakery_state->supplies[SUPPLY_MILK] > 0);
+                          bakery_state->supplies[SUPPLY_SUGAR_SALT] > 0 &&
+                          bakery_state->supplies[SUPPLY_BUTTER] > 0 &&
+                          bakery_state->supplies[SUPPLY_MILK] > 0);
             break;
         case TEAM_SANDWICH:
             can_produce = (bakery_state->inventory[ITEM_BREAD][0] > 0 &&
-                           bakery_state->supplies[SUPPLY_CHEESE_SALAMI] > 0);
+                          bakery_state->supplies[SUPPLY_CHEESE_SALAMI] > 0);
             break;
         case TEAM_SWEETS:
             can_produce = (bakery_state->supplies[SUPPLY_SWEET_ITEMS] > 0 &&
-                           bakery_state->supplies[SUPPLY_SUGAR_SALT] > 0);
+                          bakery_state->supplies[SUPPLY_SUGAR_SALT] > 0);
             break;
         case TEAM_SWEET_PATISSERIE:
         case TEAM_SAVORY_PATISSERIE:
@@ -255,7 +209,7 @@ void print_bakery_status(void) {
     
     printf("\n--- Staff ---\n");
     for (int i = 0; i < TEAM_COUNT; i++) {
-        if (i <= TEAM_SAVORY_PATISSERIE) {
+        if (i <= TEAM_BREAD) {
             printf("Chef team %d: %d chefs\n", i, bakery_state->chefs_per_team[i]);
         } else if (i >= TEAM_BAKE_CAKES_SWEETS && i <= TEAM_BAKE_BREAD) {
             printf("Baker team %d: %d bakers\n", i, bakery_state->bakers_per_team[i]);

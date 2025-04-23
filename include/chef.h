@@ -17,5 +17,5 @@ void simulate_chef(int id, TeamType team, const BakeryConfig *config);
 int check_ingredients(TeamType team);
 ItemType get_chef_item_type(TeamType team);
 int produce_item(TeamType team, int chef_id, const BakeryConfig *config);
-
+void process_chef_messages(int chef_id, TeamType *team);
 #endif

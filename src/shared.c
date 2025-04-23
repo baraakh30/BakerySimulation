@@ -156,3 +156,51 @@ void log_message(const char *format, ...) {
     printf("\n");
     fflush(stdout);
 }
+
+// Process received messages
+void process_messages() {
+    Message msg;
+    
+    // Non-blocking check for messages (MSG_DONTWAIT)
+    if ( receive_message(&msg, 1) != -1 
+        ) {
+        switch (msg.msg_type) {
+            case MSG_ITEM_PRODUCED:
+                log_message("Main process received: Item produced - Type %d, Flavor %d", 
+                          msg.data.item.item_type, msg.data.item.flavor);
+                break;
+                
+            case MSG_ITEM_BAKED:
+                log_message("Main process received: Item baked - Type %d, Flavor %d", 
+                          msg.data.item.item_type, msg.data.item.flavor);
+                break;
+                
+            case MSG_ITEM_SOLD:
+                log_message("Main process received: Item sold - Type %d, Flavor %d, Quantity %d", 
+                          msg.data.item.item_type, msg.data.item.flavor, msg.data.item.quantity);
+                break;
+                
+            case MSG_SUPPLY_PURCHASED:
+                log_message("Main process received: Supply purchased - Type %d, Quantity %d", 
+                          msg.data.supply.supply_type, msg.data.supply.quantity);
+                break;
+                
+            case MSG_CUSTOMER_COMPLAINT:
+                log_message("Main process received: Customer complaint about item type %d", 
+                          msg.data.item.item_type);
+                break;
+                
+            case MSG_CHEF_REASSIGNMENT:
+                log_message("Main process received: %d chefs reassigned from team %d to team %d", 
+                          msg.data.reassignment.num_chefs, 
+                          msg.data.reassignment.from_team, 
+                          msg.data.reassignment.to_team);
+                break;
+        }
+    }
+    
+    // Clear errno if we only got ENOMSG (no message available)
+    if (errno == ENOMSG) {
+        errno = 0;
+    }
+}
