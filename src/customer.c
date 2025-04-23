@@ -63,6 +63,7 @@ void customer_generator_sigint_handler(int signum)
     log_message("Customer generator received signal %d, exiting...", signum);
     exit(EXIT_SUCCESS);
 }
+
 // Simulate a customer
 void simulate_customer(int id, const BakeryConfig *config)
 {
@@ -123,7 +124,7 @@ void simulate_customer(int id, const BakeryConfig *config)
     customer.state = CUSTOMER_WAITING;
 
     // Check if there's an active complaint happening - if so, customer may leave immediately
-    sem_lock(SEM_ACTIVE_COMPLAINT); // Using a dedicated semaphore for active complaint flag
+    sem_lock(SEM_ACTIVE_COMPLAINT);
     int active_complaint = bakery_state->active_complaint;
     sem_unlock(SEM_ACTIVE_COMPLAINT);
 
@@ -169,10 +170,7 @@ void simulate_customer(int id, const BakeryConfig *config)
     else if (result == 1)
     {
         log_message("Customer %d left frustrated due to long wait", customer.id);
-
-        sem_lock(SEM_CUSTOMER_STATS);
-        bakery_state->frustrated_customers++;
-        sem_unlock(SEM_CUSTOMER_STATS);
+        // Note: frustrated_customers counter is now updated within handle_customer
     }
     else if (result == 2)
     {
@@ -202,6 +200,46 @@ void simulate_customer(int id, const BakeryConfig *config)
         bakery_state->missing_items_requests++;
         sem_unlock(SEM_CUSTOMER_STATS);
     }
+
+    else if (result == 4)
+    {
+        log_message("Customer %d saw a complaint and decided to leave immediately", customer.id);
+
+        // Customer leaves without being served
+        sem_lock(SEM_WAITING_CUSTOMERS);
+        bakery_state->waiting_customers--;
+        sem_unlock(SEM_WAITING_CUSTOMERS);
+
+        // Remove yourself from customer tracking
+        sem_lock(SEM_CUSTOMER_PIDS);
+        for (int i = 0; i < bakery_state->num_customers; i++)
+        {
+            if (bakery_state->customer_pids[i] == getpid())
+            {
+                // Replace this entry with the last one and decrement count
+                bakery_state->customer_pids[i] = 0;
+                bakery_state->num_customers--;
+                break;
+            }
+        }
+        sem_unlock(SEM_CUSTOMER_PIDS);
+
+        // Simply exit the process
+        exit(EXIT_SUCCESS);
+    }
+    // Remove yourself from customer tracking when leaving
+    sem_lock(SEM_CUSTOMER_PIDS);
+    for (int i = 0; i < bakery_state->num_customers; i++)
+    {
+        if (bakery_state->customer_pids[i] == getpid())
+        {
+            // Replace this entry with the last one and decrement count
+            bakery_state->customer_pids[i] = 0;
+            bakery_state->num_customers--;
+            break;
+        }
+    }
+    sem_unlock(SEM_CUSTOMER_PIDS);
 }
 
 // Handle a customer's service
@@ -210,6 +248,7 @@ int handle_customer(Customer *customer, const BakeryConfig *config)
     time_t start_wait = time(NULL);
     time_t current_time;
     int seller_id = -1;
+    int attempts = 0;
 
     // Wait until there's an available seller or we get too frustrated
     while (1)
@@ -221,6 +260,12 @@ int handle_customer(Customer *customer, const BakeryConfig *config)
         {
             customer->state = CUSTOMER_LEAVING_FRUSTRATED;
             log_message("Customer %d has been waiting too long and is leaving frustrated", customer->id);
+
+            // Update customer stats when leaving frustrated
+            sem_lock(SEM_CUSTOMER_STATS);
+            bakery_state->frustrated_customers++;
+            sem_unlock(SEM_CUSTOMER_STATS);
+
             return 1; // Customer left frustrated
         }
 
@@ -233,7 +278,8 @@ int handle_customer(Customer *customer, const BakeryConfig *config)
         {
             customer->state = CUSTOMER_LEAVING_FRUSTRATED;
             log_message("Customer %d saw a complaint during wait and decided to leave", customer->id);
-            return 1; // Customer left frustrated due to complaint
+
+            return 4;
         }
 
         // Check if there's an available seller
@@ -243,18 +289,85 @@ int handle_customer(Customer *customer, const BakeryConfig *config)
 
         if (available_sellers > 0)
         {
-            // Find an available seller
-            sem_lock(SEM_AVAILABLE_SELLERS);
-            bakery_state->available_sellers--;
-            sem_unlock(SEM_AVAILABLE_SELLERS);
+            // Find an available seller using round-robin through all sellers
+            // Try each seller starting from a position based on customer ID
+            int seller_found = 0;
+            int start_seller = customer->id % bakery_state->sellers;
 
-            // Simple rotation among sellers
-            seller_id = customer->id % bakery_state->sellers;
-            break; // Found an available seller
+            for (int i = 0; i < bakery_state->sellers && !seller_found; i++)
+            {
+                seller_id = (start_seller + i) % bakery_state->sellers;
+
+                // Send a service request message to this seller
+                Message msg;
+                msg.mtype = seller_id + 100; // Seller queue ID = 100 + seller_id
+                msg.msg_type = MSG_START_SERVING;
+                msg.sender_pid = getpid();
+                msg.data.service.customer_id = customer->id;
+                msg.data.service.item_type = customer->wanted_item_type;
+                msg.data.service.flavor = customer->wanted_flavor;
+                msg.data.service.quantity = customer->num_items;
+
+                if (send_message(&msg) == -1)
+                {
+                    perror("Failed to send service request message");
+                    continue;
+                }
+
+                // Wait for acknowledgment or rejection
+                Message response;
+                int got_response = 0;
+                time_t ack_wait_start = time(NULL);
+
+                while (!got_response && time(NULL) - ack_wait_start < 2)
+                { // Wait max 2 seconds for response
+                    if (msgrcv(msg_id, &response, sizeof(Message) - sizeof(long), getpid(), IPC_NOWAIT) != -1)
+                    {
+                        if (response.msg_type == MSG_SERVICE_ACKNOWLEDGED &&
+                            response.data.service.seller_id == seller_id)
+                        {
+                            seller_found = 1;
+                            got_response = 1;
+                            log_message("Customer %d acknowledged by seller %d", customer->id, seller_id);
+                        }
+                        else if (response.msg_type == MSG_SERVICE_REJECTED &&
+                                 response.data.service.seller_id == seller_id)
+                        {
+                            got_response = 1;
+                            log_message("Customer %d rejected by seller %d, will try another", customer->id, seller_id);
+                        }
+                    }
+                    usleep(100000); // 0.1 seconds between checks
+                }
+
+                if (seller_found)
+                {
+                    break;
+                }
+            }
+
+            if (seller_found)
+            {
+                break; // Found and confirmed an available seller
+            }
+
+            // If we tried all sellers but none confirmed, wait a bit before trying again
+            attempts++;
+            if (attempts >= 3)
+            {                    // After 3 complete attempts through all sellers
+                usleep(1000000); // Wait 1 second before next round of attempts
+                attempts = 0;
+            }
+            else
+            {
+                usleep(200000); // 0.2 seconds between seller attempts
+            }
         }
-
-        // Wait a bit before checking again
-        usleep(500000); // 0.5 seconds
+        else
+        {
+            // No sellers available according to shared memory
+            usleep(500000); // 0.5 seconds
+        }
     }
 
     // Start being served
@@ -262,21 +375,6 @@ int handle_customer(Customer *customer, const BakeryConfig *config)
     customer->service_start_time = time(NULL);
 
     log_message("Customer %d is now being served by seller %d", customer->id, seller_id);
-
-    // Send a message to the seller to start service
-    Message msg;
-    msg.mtype = seller_id + 100; // Seller queue ID = 100 + seller_id
-    msg.msg_type = MSG_START_SERVING;
-    msg.sender_pid = getpid();
-    msg.data.service.customer_id = customer->id;
-    msg.data.service.item_type = customer->wanted_item_type;
-    msg.data.service.flavor = customer->wanted_flavor;
-    msg.data.service.quantity = customer->num_items;
-
-    if (send_message(&msg) == -1)
-    {
-        perror("Failed to send service request message");
-    }
 
     // Wait for service completion message from seller
     Message response;
@@ -305,6 +403,11 @@ int handle_customer(Customer *customer, const BakeryConfig *config)
                 perror("Failed to send customer cancellation message");
             }
 
+            // Update frustrated customers count
+            sem_lock(SEM_CUSTOMER_STATS);
+            bakery_state->frustrated_customers++;
+            sem_unlock(SEM_CUSTOMER_STATS);
+
             return 1; // Customer left frustrated
         }
 
@@ -331,9 +434,81 @@ int handle_customer(Customer *customer, const BakeryConfig *config)
 
     if (items_available < customer->num_items)
     {
-        // Not enough items available
+        // Not enough items available, but check if partial quantity can be offered
+        if (items_available > 0)
+        {
+            // Offer partial quantity based on configuration probability
+            if (random_float() < config->accept_partial_probability)
+            {
+                log_message("Customer %d accepted partial quantity (%d instead of requested %d)",
+                            customer->id, items_available, customer->num_items);
+                
+                // Process the partial purchase
+                sem_lock(SUPPLY_COUNT + customer->wanted_item_type + 1);
+                bakery_state->inventory[customer->wanted_item_type][customer->wanted_flavor] -= items_available;
+                bakery_state->items_sold[customer->wanted_item_type] += items_available;
+                sem_unlock(SUPPLY_COUNT + customer->wanted_item_type + 1);
+                
+                // Calculate price for the partial quantity and add to profit
+                double item_price = config->prices[customer->wanted_item_type][customer->wanted_flavor];
+                double total_price = item_price * items_available;
+                
+                sem_lock(SEM_PROFIT_STATS);
+                bakery_state->daily_profit += total_price;
+                bakery_state->customers_served++;
+                sem_unlock(SEM_PROFIT_STATS);
+                
+                // Create a message for the item sold
+                Message sold_msg;
+                sold_msg.mtype = 1; // General message queue
+                sold_msg.msg_type = MSG_ITEM_SOLD;
+                sold_msg.sender_pid = getpid();
+                sold_msg.data.item.item_type = customer->wanted_item_type;
+                sold_msg.data.item.flavor = customer->wanted_flavor;
+                sold_msg.data.item.quantity = items_available;
+                
+                if (send_message(&sold_msg) == -1)
+                {
+                    perror("Failed to send item sold message");
+                }
+                
+                // Tell the seller the transaction is complete
+                Message complete_msg;
+                complete_msg.mtype = seller_id + 100;
+                complete_msg.msg_type = MSG_TRANSACTION_COMPLETE;
+                complete_msg.sender_pid = getpid();
+                complete_msg.data.service.customer_id = customer->id;
+                
+                if (send_message(&complete_msg) == -1)
+                {
+                    perror("Failed to send transaction completion message");
+                }
+                
+                customer->state = CUSTOMER_LEAVING_SATISFIED;
+                return 0; // Success with partial quantity
+            }
+            else {
+                log_message("Customer %d rejected partial quantity offer (%d instead of %d)",
+                            customer->id, items_available, customer->num_items);
+            }
+        }
+        
+        // Not enough items available and customer didn't accept partial quantity
         log_message("Customer %d couldn't be served because there are not enough items (requested: %d, available: %d)",
                     customer->id, customer->num_items, items_available);
+
+        // Tell the seller the transaction is complete (even though items are missing)
+        Message complete_msg;
+        complete_msg.mtype = seller_id + 100;
+        complete_msg.msg_type = MSG_TRANSACTION_COMPLETE;
+        complete_msg.sender_pid = getpid();
+        complete_msg.data.service.customer_id = customer->id;
+
+        if (send_message(&complete_msg) == -1)
+        {
+            perror("Failed to send transaction completion message");
+        }
+
         return 3; // Missing items request
     }
 
@@ -364,6 +539,18 @@ int handle_customer(Customer *customer, const BakeryConfig *config)
     if (send_message(&sold_msg) == -1)
     {
         perror("Failed to send item sold message");
+    }
+
+    // Tell the seller the transaction is complete
+    Message complete_msg;
+    complete_msg.mtype = seller_id + 100;
+    complete_msg.msg_type = MSG_TRANSACTION_COMPLETE;
+    complete_msg.sender_pid = getpid();
+    complete_msg.data.service.customer_id = customer->id;
+
+    if (send_message(&complete_msg) == -1)
+    {
+        perror("Failed to send transaction completion message");
     }
 
     // Random chance for customer to complain about quality

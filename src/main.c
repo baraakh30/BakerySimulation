@@ -329,6 +329,6 @@ int main(int argc, char *argv[])
 
         sleep(5); // Check status every 5 seconds
     }
-
+    sigint_handler(SIGINT);
     return EXIT_SUCCESS;
 }

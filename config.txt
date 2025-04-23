@@ -34,6 +34,7 @@ customer_patience = 60
 quality_threshold = 65
 complaint_probability = 0.2
 leave_on_complaint_probability = 0.5
+accept_partial_probability = 0.5
 
 # Supply min/max quantities
 supply_min_0 = 15  # SUPPLY_WHEAT

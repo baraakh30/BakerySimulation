@@ -216,6 +216,9 @@ int load_config(const char *filename, BakeryConfig *config)
             {
                 config->leave_on_complaint_probability = atof(ptr);
             }
+            else if (strcmp(key, "accept_partial_probability") == 0) {
+                config->accept_partial_probability = atof(value);
+            }
             else if (strncmp(key, "supply_min_", 11) == 0)
             {
                 int index = atoi(key + 11);

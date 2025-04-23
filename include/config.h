@@ -44,6 +44,7 @@ typedef struct {
     int quality_threshold;
     double complaint_probability;
     double leave_on_complaint_probability;
+    double accept_partial_probability;
 } BakeryConfig;
 
 int load_config(const char *filename, BakeryConfig *config);

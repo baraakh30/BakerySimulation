@@ -31,12 +31,6 @@ void simulate_seller(int id, const BakeryConfig *config)
 
         // Check if it's time for a break, but only if not currently serving a customer
         time_t current_time = time(NULL);
-        if (seller.state == SELLER_IDLE &&
-            current_time - seller.last_break > 1800)
-        { // 30 minutes (simulation time)
-            take_seller_break(id, config);
-            seller.last_break = current_time;
-        }
 
         // If idle, signal availability for serving customers
         if (seller.state == SELLER_IDLE)
@@ -48,11 +42,10 @@ void simulate_seller(int id, const BakeryConfig *config)
             }
             sem_unlock(SEM_AVAILABLE_SELLERS);
         }
-
         // If serving a customer for too long, timeout and become available again
         if (seller.state == SELLER_SERVING &&
             seller.service_start > 0 &&
-            current_time - seller.service_start > 20)
+            current_time - seller.service_start > config->customer_patience)
         { // 20 seconds timeout
             log_message("Seller %d timed out while serving customer %d", id, seller.current_customer_id);
             seller.state = SELLER_IDLE;
@@ -81,31 +74,55 @@ void process_seller_messages(int seller_id, Seller *seller)
             log_message("Seller %d received service request from customer %d",
                         seller_id, msg.data.service.customer_id);
 
-            seller->state = SELLER_SERVING;
-            seller->current_customer_id = msg.data.service.customer_id;
-            seller->service_start = time(NULL);
+            // Only accept new customers if actually idle
+            if (seller->state == SELLER_IDLE) {
+                seller->state = SELLER_SERVING;
+                seller->current_customer_id = msg.data.service.customer_id;
+                seller->service_start = time(NULL);
 
-            update_seller_availability(seller_id, SELLER_SERVING);
+                // Update availability in shared memory
+                update_seller_availability(seller_id, SELLER_SERVING);
 
-            // Simulate the time it takes to serve a customer
-            int service_time = random_range(1, 5);
-            sleep(service_time);
+                // Acknowledge receipt of request to customer
+                Message ack;
+                ack.mtype = msg.sender_pid;
+                ack.msg_type = MSG_SERVICE_ACKNOWLEDGED;
+                ack.sender_pid = getpid();
+                ack.data.service.seller_id = seller_id;
+                ack.data.service.customer_id = msg.data.service.customer_id;
+                
+                if (send_message(&ack) == -1) {
+                    perror("Failed to send service acknowledgment message");
+                }
 
-            // When service is complete, send a confirmation message back
-            Message response;
-            response.mtype = msg.sender_pid; // Direct the response to the customer
-            response.msg_type = MSG_SERVICE_COMPLETE;
-            response.sender_pid = getpid();
-            response.data.service.seller_id = seller_id;
-            response.data.service.customer_id = msg.data.service.customer_id;
+                // Simulate the time it takes to serve a customer
+                int service_time = random_range(1, 3); // Reduced service time to prevent timeouts
+                sleep(service_time);
 
-            if (send_message(&response) == -1)
-            {
-                perror("Failed to send service completion message");
+                // When service is complete, send a confirmation message back
+                Message response;
+                response.mtype = msg.sender_pid; // Direct the response to the customer
+                response.msg_type = MSG_SERVICE_COMPLETE;
+                response.sender_pid = getpid();
+                response.data.service.seller_id = seller_id;
+                response.data.service.customer_id = msg.data.service.customer_id;
+
+                if (send_message(&response) == -1) {
+                    perror("Failed to send service completion message");
+                }
+            } else {
+                // Reject the request if not idle
+                Message reject;
+                reject.mtype = msg.sender_pid;
+                reject.msg_type = MSG_SERVICE_REJECTED;
+                reject.sender_pid = getpid();
+                reject.data.service.seller_id = seller_id;
+                reject.data.service.customer_id = msg.data.service.customer_id;
+                
+                if (send_message(&reject) == -1) {
+                    perror("Failed to send service rejection message");
+                }
             }
-
-            // The seller remains in SERVING state until the transaction completes or customer leaves
-            // We update the state but don't update availability yet
             break;
 
         case MSG_CUSTOMER_LEFT:
@@ -130,6 +147,7 @@ void process_seller_messages(int seller_id, Seller *seller)
                 log_message("Seller %d: Transaction completed for customer %d",
                             seller_id, msg.data.service.customer_id);
 
+                // Atomic update - first complete current transaction then get ready for next
                 seller->served_customers++;
                 seller->state = SELLER_IDLE;
                 seller->current_customer_id = -1;
@@ -153,21 +171,6 @@ void process_seller_messages(int seller_id, Seller *seller)
     }
 }
 
-// Take a break periodically
-void take_seller_break(int seller_id, const BakeryConfig *config)
-{
-    log_message("Seller %d is taking a break", seller_id);
-
-    update_seller_availability(seller_id, SELLER_ON_BREAK);
-
-    // Breaks last 5-15 minutes (simulation time)
-    int break_time = random_range(5, 15);
-    sleep(break_time);
-
-    log_message("Seller %d is back from break", seller_id);
-
-    update_seller_availability(seller_id, SELLER_IDLE);
-}
 
 // Update the availability of sellers in shared memory
 void update_seller_availability(int seller_id, SellerState new_state)
@@ -177,11 +180,16 @@ void update_seller_availability(int seller_id, SellerState new_state)
     // Update seller state in shared memory
     if (new_state == SELLER_IDLE)
     {
-        // Don't increment available_sellers here - we do that in the main loop
+        bakery_state->available_sellers++;
+        log_message("Seller %d is now IDLE and available", seller_id);
     }
-    else if (new_state != SELLER_IDLE && bakery_state->available_sellers > 0)
+    else if (new_state != SELLER_IDLE)
     {
-        bakery_state->available_sellers--;
+        if (bakery_state->available_sellers > 0)
+        {
+            bakery_state->available_sellers--;
+            log_message("Seller %d is now BUSY (not available)", seller_id);
+        }
     }
 
     sem_unlock(SEM_AVAILABLE_SELLERS);
