@@ -46,10 +46,7 @@ typedef struct {
     double leave_on_complaint_probability;
 } BakeryConfig;
 
-// Load configuration from file
 int load_config(const char *filename, BakeryConfig *config);
-
-// Initialize bakery state from config
 void init_bakery_state(const BakeryConfig *config);
 
 #endif
