@@ -323,27 +323,11 @@ int produce_item(TeamType team, int chef_id, const BakeryConfig *config)
     // Generate quality score for the item
     int quality = random_range(50, 100);
 
-    // Create a message for the item produced
-    Message msg;
-    msg.mtype = 1; // General message queue
-    msg.msg_type = MSG_ITEM_PRODUCED;
-    msg.sender_pid = getpid();
-    msg.data.item.item_type = item_type;
-    msg.data.item.flavor = flavor;
-    msg.data.item.quantity = 1;
-
     // Add the item to the inventory
     sem_lock(SUPPLY_COUNT + item_type + 1); // Lock the specific item type
     bakery_state->inventory[item_type][flavor]++;
     bakery_state->items_produced[item_type]++;
     sem_unlock(SUPPLY_COUNT + item_type + 1); // Unlock
-
-    // Send the message
-    if (send_message(&msg) == -1)
-    {
-        perror("Failed to send chef production message");
-        return -1;
-    }
 
     log_message("Chef %d produced item type %d flavor %d with quality %d",
                 chef_id, item_type, flavor, quality);

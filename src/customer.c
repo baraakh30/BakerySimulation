@@ -56,7 +56,6 @@ void simulate_customer_generator(const BakeryConfig *config)
             customer_id++;
             
             // Small delay between creating individual customers in a batch
-            // to prevent overwhelming the system
             usleep(50000); // 50ms delay between customers in the same batch
         }
 

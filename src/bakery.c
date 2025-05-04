@@ -62,7 +62,6 @@ void reassign_chefs(TeamType from_team, TeamType to_team, int num_chefs)
     {
         bakery_state->chefs_per_team[from_team] -= num_chefs;
         bakery_state->chefs_per_team[to_team] += num_chefs;
-
         // Send message to notify about reassignment
         Message msg;
         msg.mtype = 1;
@@ -93,16 +92,7 @@ int check_item_availability(ItemType item_type, int flavor)
     return available;
 }
 
-// Calculate profit from selling an item
-double calculate_profit(ItemType item_type, int flavor)
-{
-    // This would normally involve subtracting production costs from the selling price
-    // For simplicity, we'll just return the price as profit
-    return bakery_state->inventory[item_type][flavor];
-}
-
 // Check if a team can produce its items based on ingredient availability
-// Fix the can_produce_item function in bakery.c to remove the undefined SUPPLY_WATER
 int can_produce_item(TeamType team)
 {
     sem_lock(0);
@@ -169,9 +159,6 @@ void adjust_production_priorities(void)
 
         // Get production rates
         production_rates[item_type] = bakery_state->items_produced[item_type];
-        
-        // For now, set customer demand to total items sold
-        // We'll adjust for internal consumption later
         customer_demand[item_type] = bakery_state->items_sold[item_type];
     }
     

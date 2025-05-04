@@ -47,11 +47,13 @@ void sigint_handler(int signum)
             {
                 if (chef_pids[i] > 0)
                 {
-                 
-                    if (kill(chef_pids[i], SIGTERM) < 0) {
+
+                    if (kill(chef_pids[i], SIGTERM) < 0)
+                    {
                         perror("[Main Process] Failed to send SIGTERM to chef");
                     }
-                    if (waitpid(chef_pids[i], NULL, 0) < 0) {
+                    if (waitpid(chef_pids[i], NULL, 0) < 0)
+                    {
                         perror("[Main Process] Failed waiting for chef to terminate");
                     }
                 }
@@ -60,7 +62,8 @@ void sigint_handler(int signum)
             chef_pids = NULL;
             printf("[Main Process] All chef processes terminated.\n");
         }
-        else {
+        else
+        {
             printf("[Main Process] No chef processes to terminate.\n");
         }
 
@@ -72,10 +75,12 @@ void sigint_handler(int signum)
             {
                 if (baker_pids[i] > 0)
                 {
-                    if (kill(baker_pids[i], SIGTERM) < 0) {
+                    if (kill(baker_pids[i], SIGTERM) < 0)
+                    {
                         perror("[Main Process] Failed to send SIGTERM to baker");
                     }
-                    if (waitpid(baker_pids[i], NULL, 0) < 0) {
+                    if (waitpid(baker_pids[i], NULL, 0) < 0)
+                    {
                         perror("[Main Process] Failed waiting for baker to terminate");
                     }
                 }
@@ -84,7 +89,8 @@ void sigint_handler(int signum)
             baker_pids = NULL;
             printf("[Main Process] All baker processes terminated.\n");
         }
-        else {
+        else
+        {
             printf("[Main Process] No baker processes to terminate.\n");
         }
 
@@ -96,10 +102,12 @@ void sigint_handler(int signum)
             {
                 if (supply_pids[i] > 0)
                 {
-                    if (kill(supply_pids[i], SIGTERM) < 0) {
+                    if (kill(supply_pids[i], SIGTERM) < 0)
+                    {
                         perror("[Main Process] Failed to send SIGTERM to supply");
                     }
-                    if (waitpid(supply_pids[i], NULL, 0) < 0) {
+                    if (waitpid(supply_pids[i], NULL, 0) < 0)
+                    {
                         perror("[Main Process] Failed waiting for supply to terminate");
                     }
                 }
@@ -108,7 +116,8 @@ void sigint_handler(int signum)
             supply_pids = NULL;
             printf("[Main Process] All supply chain processes terminated.\n");
         }
-        else {
+        else
+        {
             printf("[Main Process] No supply chain processes to terminate.\n");
         }
 
@@ -120,10 +129,12 @@ void sigint_handler(int signum)
             {
                 if (seller_pids[i] > 0)
                 {
-                    if (kill(seller_pids[i], SIGTERM) < 0) {
+                    if (kill(seller_pids[i], SIGTERM) < 0)
+                    {
                         perror("[Main Process] Failed to send SIGTERM to seller");
                     }
-                    if (waitpid(seller_pids[i], NULL, 0) < 0) {
+                    if (waitpid(seller_pids[i], NULL, 0) < 0)
+                    {
                         perror("[Main Process] Failed waiting for seller to terminate");
                     }
                 }
@@ -132,33 +143,38 @@ void sigint_handler(int signum)
             seller_pids = NULL;
             printf("[Main Process] All seller processes terminated.\n");
         }
-        else {
+        else
+        {
             printf("[Main Process] No seller processes to terminate.\n");
         }
 
         // Special handling for customer processes
         printf("[Main Process] Handling customer processes...\n");
-        if (bakery_state) {
-        sem_lock(SEM_CUSTOMER_PIDS) ;
- 
-            
+        if (bakery_state)
+        {
+            sem_lock(SEM_CUSTOMER_PIDS);
+
             printf("[Main Process] Terminating %d customer processes...\n", bakery_state->num_customers);
             for (int i = 0; i < bakery_state->num_customers + 1; i++)
             {
                 if (bakery_state->customer_pids[i] > 0)
                 {
-                    if (kill(bakery_state->customer_pids[i], SIGTERM) < 0) {
+                    if (kill(bakery_state->customer_pids[i], SIGTERM) < 0)
+                    {
                         perror("[Main Process] Failed to send SIGTERM to customer");
                     }
-                    if (waitpid(bakery_state->customer_pids[i], NULL, 0) < 0) {
+                    if (waitpid(bakery_state->customer_pids[i], NULL, 0) < 0)
+                    {
                         perror("[Main Process] Failed waiting for customer to terminate");
                     }
                 }
             }
-            
-           sem_unlock(SEM_CUSTOMER_PIDS);
+
+            sem_unlock(SEM_CUSTOMER_PIDS);
             printf("[Main Process] All customer processes handled.\n");
-        } else {
+        }
+        else
+        {
             printf("[Main Process] Warning: bakery_state is NULL, cannot access customer PIDs\n");
         }
 
@@ -166,15 +182,18 @@ void sigint_handler(int signum)
         if (customer_generator_pid > 0)
         {
             printf("[Main Process] Terminating customer generator (PID: %d)...\n", customer_generator_pid);
-            if (kill(customer_generator_pid, SIGTERM) < 0) {
+            if (kill(customer_generator_pid, SIGTERM) < 0)
+            {
                 perror("[Main Process] Failed to send SIGTERM to customer generator");
             }
-            if (waitpid(customer_generator_pid, NULL, 0) < 0) {
+            if (waitpid(customer_generator_pid, NULL, 0) < 0)
+            {
                 perror("[Main Process] Failed waiting for customer generator to terminate");
             }
             customer_generator_pid = -1;
         }
-        else {
+        else
+        {
             printf("[Main Process] No customer generator process to terminate.\n");
         }
 
@@ -182,15 +201,18 @@ void sigint_handler(int signum)
         if (display_pid > 0)
         {
             printf("[Main Process] Terminating display process (PID: %d)...\n", display_pid);
-            if (kill(display_pid, SIGTERM) < 0) {
+            if (kill(display_pid, SIGTERM) < 0)
+            {
                 perror("[Main Process] Failed to send SIGTERM to display process");
             }
-            if (waitpid(display_pid, NULL, 0) < 0) {
+            if (waitpid(display_pid, NULL, 0) < 0)
+            {
                 perror("[Main Process] Failed waiting for display process to terminate");
             }
             display_pid = -1;
         }
-        else {
+        else
+        {
             printf("[Main Process] No display process to terminate.\n");
         }
 
@@ -201,7 +223,8 @@ void sigint_handler(int signum)
 
         exit(EXIT_SUCCESS);
     }
-    else {
+    else
+    {
         // Child process received SIGINT, just exit cleanly
         printf("[Child Process %d] Received SIGINT, exiting cleanly...\n", current_pid);
         exit(EXIT_SUCCESS);
@@ -409,7 +432,7 @@ int main(int argc, char *argv[])
             break;
         }
 
-        sleep(5); // Check status every 5 seconds
+        sleep(3); // Check status every 3 seconds
     }
     sigint_handler(SIGINT);
     return EXIT_SUCCESS;
