@@ -208,6 +208,15 @@ int load_config(const char *filename, BakeryConfig *config)
             {
                 config->customer_batch_max = atoi(ptr);
             }
+            else if (strcmp(key, "purchase_quantity_min") == 0)
+            {
+                config->purchase_quantity_min = atoi(ptr);
+            }
+            else if (strcmp(key, "purchase_quantity_max") == 0)
+            {
+                config->purchase_quantity_max = atoi(ptr);
+            }
+            
             else if (strcmp(key, "customer_patience") == 0)
             {
                 config->customer_patience = atoi(ptr);

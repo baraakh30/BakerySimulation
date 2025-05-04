@@ -147,7 +147,7 @@ int can_produce_item(TeamType team)
     return can_produce;
 }
 
-// Adjust production priorities based on inventory and customer demands
+// Adjust production priorities based on inventory, customer demands, and ingredient usage
 void adjust_production_priorities(void)
 {
     // First collect all inventory data under a single lock
@@ -156,8 +156,9 @@ void adjust_production_priorities(void)
     // Track total inventory for each item type
     int inventory_counts[ITEM_COUNT] = {0};
     int production_rates[ITEM_COUNT] = {0};
-    int consumption_rates[ITEM_COUNT] = {0};
-
+    int customer_demand[ITEM_COUNT] = {0};
+    int internal_consumption[ITEM_COUNT] = {0};
+    
     // Calculate total inventory for each item type
     for (int item_type = 0; item_type < ITEM_COUNT; item_type++)
     {
@@ -166,9 +167,30 @@ void adjust_production_priorities(void)
             inventory_counts[item_type] += bakery_state->inventory[item_type][flavor];
         }
 
-        // Get production and sales rates
+        // Get production rates
         production_rates[item_type] = bakery_state->items_produced[item_type];
-        consumption_rates[item_type] = bakery_state->items_sold[item_type];
+        
+        // For now, set customer demand to total items sold
+        // We'll adjust for internal consumption later
+        customer_demand[item_type] = bakery_state->items_sold[item_type];
+    }
+    
+    // Estimate internal consumption based on production of items that use others as ingredients
+    // Bread used for sandwiches
+    internal_consumption[ITEM_BREAD] = production_rates[ITEM_SANDWICH];
+    
+    // Paste used for patisseries
+    internal_consumption[ITEM_PASTE] = production_rates[ITEM_SWEET_PATISSERIE] + 
+                                      production_rates[ITEM_SAVORY_PATISSERIE];
+    
+    // Adjust customer demand to account for internal consumption
+    for (int item_type = 0; item_type < ITEM_COUNT; item_type++) {
+        // Real customer demand is total sales minus internal consumption
+        customer_demand[item_type] -= internal_consumption[item_type];
+        
+        // Ensure we don't have negative demand due to calculation errors
+        if (customer_demand[item_type] < 0)
+            customer_demand[item_type] = 0;
     }
 
     // Store chef assignments to avoid calling reassign_chefs while holding the lock
@@ -185,80 +207,139 @@ void adjust_production_priorities(void)
 
     // 1. Check sweet vs savory patisseries
     if (inventory_counts[ITEM_SWEET_PATISSERIE] < inventory_counts[ITEM_SAVORY_PATISSERIE] * 0.7 &&
+        customer_demand[ITEM_SWEET_PATISSERIE] > customer_demand[ITEM_SAVORY_PATISSERIE] &&
         chefs_per_team[TEAM_SAVORY_PATISSERIE] > 1)
     {
         // Move a chef from savory to sweet patisseries
         reassign_chefs(TEAM_SAVORY_PATISSERIE, TEAM_SWEET_PATISSERIE, 1);
-        log_message("Adjusted production: moved chef from savory to sweet patisseries");
+        log_message("Adjusted production: moved chef from savory to sweet patisseries due to customer demand");
     }
     else if (inventory_counts[ITEM_SAVORY_PATISSERIE] < inventory_counts[ITEM_SWEET_PATISSERIE] * 0.7 &&
+             customer_demand[ITEM_SAVORY_PATISSERIE] > customer_demand[ITEM_SWEET_PATISSERIE] &&
              chefs_per_team[TEAM_SWEET_PATISSERIE] > 1)
     {
         // Move a chef from sweet to savory patisseries
         reassign_chefs(TEAM_SWEET_PATISSERIE, TEAM_SAVORY_PATISSERIE, 1);
-        log_message("Adjusted production: moved chef from sweet to savory patisseries");
+        log_message("Adjusted production: moved chef from sweet to savory patisseries due to customer demand");
     }
 
-    // 2. Check bread vs sandwich needs
+    // 2. Check bread vs sandwich needs - consider both customer demand and internal use
+    int total_bread_need = customer_demand[ITEM_BREAD] + internal_consumption[ITEM_BREAD];
     if (inventory_counts[ITEM_BREAD] < 5 &&
-        consumption_rates[ITEM_BREAD] > production_rates[ITEM_BREAD] &&
+        total_bread_need >= production_rates[ITEM_BREAD] &&
         chefs_per_team[TEAM_SANDWICH] > 1)
     {
         // Move a chef from sandwich to bread
         reassign_chefs(TEAM_SANDWICH, TEAM_BREAD, 1);
-        log_message("Adjusted production: moved chef from sandwich to bread team due to bread shortage");
+        log_message("Adjusted production: moved chef from sandwich to bread team due to bread shortage and high demand");
     }
     else if (inventory_counts[ITEM_SANDWICH] < 5 &&
-             consumption_rates[ITEM_SANDWICH] > production_rates[ITEM_SANDWICH] &&
+             customer_demand[ITEM_SANDWICH] > production_rates[ITEM_SANDWICH] &&
+             customer_demand[ITEM_BREAD] < production_rates[ITEM_BREAD] - internal_consumption[ITEM_BREAD] &&
+             inventory_counts[ITEM_BREAD] > 8 &&  // Make sure we have sufficient bread inventory
              chefs_per_team[TEAM_BREAD] > 2)
     {
-        // Keep at least 2 chefs making bread since it's a base ingredient
+        // Move a chef from bread to sandwich, but only if we have excess bread production
         reassign_chefs(TEAM_BREAD, TEAM_SANDWICH, 1);
-        log_message("Adjusted production: moved chef from bread to sandwich team due to sandwich shortage");
+        log_message("Adjusted production: moved chef from bread to sandwich team due to sandwich demand and sufficient bread");
     }
 
     // 3. Check cake vs sweets balance
     if (inventory_counts[ITEM_CAKE] < inventory_counts[ITEM_SWEETS] * 0.5 &&
-        consumption_rates[ITEM_CAKE] > production_rates[ITEM_CAKE] &&
+        customer_demand[ITEM_CAKE] > customer_demand[ITEM_SWEETS] &&
         chefs_per_team[TEAM_SWEETS] > 1)
     {
         // Move a chef from sweets to cake
         reassign_chefs(TEAM_SWEETS, TEAM_CAKE, 1);
-        log_message("Adjusted production: moved chef from sweets to cake team");
+        log_message("Adjusted production: moved chef from sweets to cake team based on customer demand");
     }
     else if (inventory_counts[ITEM_SWEETS] < inventory_counts[ITEM_CAKE] * 0.5 &&
-             consumption_rates[ITEM_SWEETS] > production_rates[ITEM_SWEETS] &&
+             customer_demand[ITEM_SWEETS] > customer_demand[ITEM_CAKE] &&
              chefs_per_team[TEAM_CAKE] > 1)
     {
         // Move a chef from cake to sweets
         reassign_chefs(TEAM_CAKE, TEAM_SWEETS, 1);
-        log_message("Adjusted production: moved chef from cake to sweets team");
+        log_message("Adjusted production: moved chef from cake to sweets team based on customer demand");
     }
 
     // 4. Check paste inventory (as it's needed for both patisserie types)
+    // Calculate total paste need based on patisserie production
+    int paste_need = production_rates[ITEM_SWEET_PATISSERIE] + production_rates[ITEM_SAVORY_PATISSERIE];
+    
     if (inventory_counts[ITEM_PASTE] < 3 &&
+        paste_need > production_rates[ITEM_PASTE] &&
         (inventory_counts[ITEM_SWEET_PATISSERIE] + inventory_counts[ITEM_SAVORY_PATISSERIE]) > 10 &&
         (chefs_per_team[TEAM_SWEET_PATISSERIE] + chefs_per_team[TEAM_SAVORY_PATISSERIE]) > 2)
     {
-
-        // Determine which patisserie team to draw from
-        TeamType from_team = (chefs_per_team[TEAM_SWEET_PATISSERIE] > chefs_per_team[TEAM_SAVORY_PATISSERIE]) ? TEAM_SWEET_PATISSERIE : TEAM_SAVORY_PATISSERIE;
+        // Determine which patisserie team to draw from based on inventory and demand ratio
+        TeamType from_team;
+        if (inventory_counts[ITEM_SWEET_PATISSERIE] > inventory_counts[ITEM_SAVORY_PATISSERIE] && 
+            customer_demand[ITEM_SWEET_PATISSERIE] <= customer_demand[ITEM_SAVORY_PATISSERIE])
+        {
+            from_team = TEAM_SWEET_PATISSERIE;
+        }
+        else if (inventory_counts[ITEM_SAVORY_PATISSERIE] > inventory_counts[ITEM_SWEET_PATISSERIE] && 
+                 customer_demand[ITEM_SAVORY_PATISSERIE] <= customer_demand[ITEM_SWEET_PATISSERIE])
+        {
+            from_team = TEAM_SAVORY_PATISSERIE;
+        }
+        else {
+            // Default to team with more chefs if no clear winner
+            from_team = (chefs_per_team[TEAM_SWEET_PATISSERIE] > chefs_per_team[TEAM_SAVORY_PATISSERIE]) ? 
+                          TEAM_SWEET_PATISSERIE : TEAM_SAVORY_PATISSERIE;
+        }
 
         // Move a chef to paste production when paste is low
         reassign_chefs(from_team, TEAM_PASTE, 1);
         log_message("Adjusted production: moved chef to paste team due to paste shortage");
     }
     else if (inventory_counts[ITEM_PASTE] > 10 &&
+             production_rates[ITEM_PASTE] > paste_need * 1.5 && // We have excess paste production
              chefs_per_team[TEAM_PASTE] > 1 &&
              (inventory_counts[ITEM_SWEET_PATISSERIE] + inventory_counts[ITEM_SAVORY_PATISSERIE]) < 5)
     {
+        // Determine which patisserie team needs more help based on inventory and demand
+        TeamType to_team;
+        if (inventory_counts[ITEM_SWEET_PATISSERIE] < inventory_counts[ITEM_SAVORY_PATISSERIE] && 
+            customer_demand[ITEM_SWEET_PATISSERIE] >= customer_demand[ITEM_SAVORY_PATISSERIE])
+        {
+            to_team = TEAM_SWEET_PATISSERIE;
+        }
+        else if (inventory_counts[ITEM_SAVORY_PATISSERIE] < inventory_counts[ITEM_SWEET_PATISSERIE] && 
+                 customer_demand[ITEM_SAVORY_PATISSERIE] >= customer_demand[ITEM_SWEET_PATISSERIE])
+        {
+            to_team = TEAM_SAVORY_PATISSERIE;
+        }
+        else {
+            // Default based on customer demand if no clear winner
+            to_team = (customer_demand[ITEM_SWEET_PATISSERIE] > customer_demand[ITEM_SAVORY_PATISSERIE]) ? 
+                        TEAM_SWEET_PATISSERIE : TEAM_SAVORY_PATISSERIE;
+        }
 
-        // Determine which patisserie team needs more help
-        TeamType to_team = (inventory_counts[ITEM_SWEET_PATISSERIE] < inventory_counts[ITEM_SAVORY_PATISSERIE]) ? TEAM_SWEET_PATISSERIE : TEAM_SAVORY_PATISSERIE;
-
-        // Move a chef from paste to patisserie when patisseries are low
+        // Move a chef from paste to patisserie when patisseries are low and we have excess paste
         reassign_chefs(TEAM_PASTE, to_team, 1);
         log_message("Adjusted production: moved chef from paste team to patisserie team");
+    }
+    
+    // 5. Special handling for direct bread customer demand
+    // If customers want bread but our bread is being used for sandwiches
+    if (customer_demand[ITEM_BREAD] > 0 && 
+        inventory_counts[ITEM_BREAD] < 3 && 
+        production_rates[ITEM_BREAD] <= internal_consumption[ITEM_BREAD]) {
+        
+        // We need more bread producers specifically for customer demand
+        if (chefs_per_team[TEAM_SANDWICH] > 1 && 
+            inventory_counts[ITEM_SANDWICH] > 5) {
+            // Take from sandwich team if we have sandwich inventory
+            reassign_chefs(TEAM_SANDWICH, TEAM_BREAD, 1);
+            log_message("Adjusted production: moved chef from sandwich to bread team to meet customer bread demand");
+        }
+        else if (chefs_per_team[TEAM_PASTE] > 1 && 
+                 inventory_counts[ITEM_PASTE] > 5) {
+            // Or take from paste team if we have paste inventory
+            reassign_chefs(TEAM_PASTE, TEAM_BREAD, 1);
+            log_message("Adjusted production: moved chef from paste to bread team to meet customer bread demand");
+        }
     }
 }
 

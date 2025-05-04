@@ -115,7 +115,7 @@ void simulate_customer(int id, const BakeryConfig *config)
     }
 
     customer.wanted_flavor = random_range(0, max_flavor - 1);
-    customer.num_items = random_range(1, 3);
+    customer.num_items = random_range(config->purchase_quantity_min, config->purchase_quantity_max);
 
     log_message("Customer %d arrived, wants %d of item type %d flavor %d",
                 customer.id, customer.num_items, customer.wanted_item_type,
