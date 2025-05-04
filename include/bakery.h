@@ -5,7 +5,6 @@
 #include "config.h"
 
 // Bakery management function prototypes
-void stop_simulation(void);
 void check_simulation_end_conditions(const BakeryConfig *config);
 void reassign_chefs(TeamType from_team, TeamType to_team, int num_chefs);
 int check_item_availability(ItemType item_type, int flavor);

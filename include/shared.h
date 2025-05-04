@@ -164,6 +164,7 @@ extern int shm_id;
 extern int sem_id;
 extern int msg_id;
 extern BakeryState *bakery_state;
+extern pid_t main_process_pid;
 
 // Function prototypes
 int init_ipc(void);

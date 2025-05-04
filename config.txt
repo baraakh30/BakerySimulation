@@ -17,7 +17,7 @@ num_supply_chain = 2
 # Simulation thresholds
 max_complaints = 10
 max_frustrated_customers = 15
-max_missing_items_requests = 5
+max_missing_items_requests = 45
 profit_threshold = 500.0
 simulation_time_minutes = 5
 

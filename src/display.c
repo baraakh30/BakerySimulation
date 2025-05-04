@@ -2,6 +2,7 @@
 #include "../include/shared.h"
 #include "../include/config.h"
 #include <GL/glut.h>
+#include <GL/freeglut.h> 
 #include <math.h>
 
 // Global variables for display
@@ -39,6 +40,24 @@ void draw_text(float x, float y, const char *string)
     }
 }
 
+void send_close_signal(void)
+{
+    printf("[Display Process] Visualizer closing, signaling main process (PID: %d)...\n", main_process_pid);
+    
+    // Send signal to main process to initiate shutdown
+    if (kill(main_process_pid, SIGINT) < 0) {
+        perror("[Display Process] Failed to signal main process");
+    }
+    
+    printf("[Display Process] Shutdown signal sent, exiting visualizer.\n");
+
+}
+
+void handle_close(void)
+{
+    send_close_signal();
+}
+
 // Initialize OpenGL display
 void init_display(int argc, char **argv)
 {
@@ -57,7 +76,7 @@ void init_display(int argc, char **argv)
     glutReshapeFunc(reshape_function);
     glutKeyboardFunc(keyboard_function);
     glutTimerFunc(refresh_rate, timer_function, 0);
-
+    glutCloseFunc(handle_close);
     glutMainLoop();
 }
 

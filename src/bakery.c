@@ -1,14 +1,5 @@
 #include "../include/bakery.h"
 
-// Stop the simulation and signal all processes to terminate
-void stop_simulation(void)
-{
-    sem_lock(0); // Lock shared memory access
-    bakery_state->is_running = 0;
-    log_message("Simulation stopped");
-    sem_unlock(0);
-}
-
 // Check if any end condition has been met
 void check_simulation_end_conditions(const BakeryConfig *config)
 {
