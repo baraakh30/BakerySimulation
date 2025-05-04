@@ -9,15 +9,15 @@ num_sweet_patisseries = 4
 num_savory_patisseries = 3
 
 # Staff counts
-num_chefs = 10
-num_bakers = 8
-num_sellers = 3
+num_chefs = 12
+num_bakers = 10
+num_sellers = 4
 num_supply_chain = 2
 
 # Simulation thresholds
 max_complaints = 10
 max_frustrated_customers = 15
-max_missing_items_requests = 20
+max_missing_items_requests = 5
 profit_threshold = 500.0
 simulation_time_minutes = 5
 
@@ -28,8 +28,10 @@ baker_time_min = 5
 baker_time_max = 15
 
 # Customer behavior parameters
-customer_arrival_min = 2
-customer_arrival_max = 10
+customer_arrival_min = 1
+customer_arrival_max = 5
+customer_batch_min = 1
+customer_batch_max = 3
 customer_patience = 60
 quality_threshold = 65
 complaint_probability = 0.2

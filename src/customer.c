@@ -18,50 +18,55 @@ void simulate_customer_generator(const BakeryConfig *config)
 
     while (bakery_state->is_running)
     {
-        // Generate a new customer
-        pid_t pid = fork();
+        // Generate multiple customers at once
+        int num_customers = random_range(config->customer_batch_min, 
+                                        config->customer_batch_max);
+        
+        log_message("Generating batch of %d customers", num_customers);
+        
+        // Create the specified number of customers
+        for (int i = 0; i < num_customers; i++)
+        {
+            // Generate a new customer
+            pid_t pid = fork();
 
-        if (pid < 0)
-        {
-            perror("Failed to fork customer process");
-        }
-        else if (pid == 0)
-        {
-            // Child process (customer)
-            // Set default signal handler for customers
-            signal(SIGINT, SIG_DFL);
-
-            srand(time(NULL) ^ getpid());
-            simulate_customer(customer_id, config);
-            exit(EXIT_SUCCESS);
-        }
-        else
-        {
-            // Parent process - track this customer PID in shared memory
-            sem_lock(SEM_CUSTOMER_PIDS); // Use an appropriate semaphore index
-            if (bakery_state->num_customers < MAX_CUSTOMERS)
+            if (pid < 0)
             {
-                bakery_state->customer_pids[bakery_state->num_customers++] = pid;
+                perror("Failed to fork customer process");
             }
-            sem_unlock(SEM_CUSTOMER_PIDS);
+            else if (pid == 0)
+            {
+                // Child process (customer)
+
+                srand(time(NULL) ^ getpid());
+                simulate_customer(customer_id, config);
+                exit(EXIT_SUCCESS);
+            }
+            else
+            {
+                // Track this customer PID in shared memory
+                sem_lock(SEM_CUSTOMER_PIDS); 
+                if (bakery_state->num_customers < MAX_CUSTOMERS)
+                {
+                    bakery_state->customer_pids[bakery_state->num_customers++] = pid;
+                }
+                sem_unlock(SEM_CUSTOMER_PIDS);
+            }
+
+            customer_id++;
+            
+            // Small delay between creating individual customers in a batch
+            // to prevent overwhelming the system
+            usleep(50000); // 50ms delay between customers in the same batch
         }
 
-        customer_id++;
-
-        // Sleep for random time before next customer arrives
+        // Sleep for random time before checking for next batch of customers
         int wait_time = random_range(config->customer_arrival_min,
-                                     config->customer_arrival_max);
+                                   config->customer_arrival_max);
         sleep(wait_time);
     }
 
     log_message("Customer generator ending");
-}
-
-// Customer generator signal handler - simplified since main process will handle termination
-void customer_generator_sigint_handler(int signum)
-{
-    log_message("Customer generator received signal %d, exiting...", signum);
-    exit(EXIT_SUCCESS);
 }
 
 // Simulate a customer
@@ -205,27 +210,6 @@ void simulate_customer(int id, const BakeryConfig *config)
     {
         log_message("Customer %d saw a complaint and decided to leave immediately", customer.id);
 
-        // Customer leaves without being served
-        sem_lock(SEM_WAITING_CUSTOMERS);
-        bakery_state->waiting_customers--;
-        sem_unlock(SEM_WAITING_CUSTOMERS);
-
-        // Remove yourself from customer tracking
-        sem_lock(SEM_CUSTOMER_PIDS);
-        for (int i = 0; i < bakery_state->num_customers; i++)
-        {
-            if (bakery_state->customer_pids[i] == getpid())
-            {
-                // Replace this entry with the last one and decrement count
-                bakery_state->customer_pids[i] = 0;
-                bakery_state->num_customers--;
-                break;
-            }
-        }
-        sem_unlock(SEM_CUSTOMER_PIDS);
-
-        // Simply exit the process
-        exit(EXIT_SUCCESS);
     }
     // Remove yourself from customer tracking when leaving
     sem_lock(SEM_CUSTOMER_PIDS);
@@ -240,6 +224,8 @@ void simulate_customer(int id, const BakeryConfig *config)
         }
     }
     sem_unlock(SEM_CUSTOMER_PIDS);
+    // Exit the process
+    exit(EXIT_SUCCESS);
 }
 
 // Handle a customer's service

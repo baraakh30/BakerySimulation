@@ -22,7 +22,7 @@
 #include <string.h>
 
 // Constants
-#define MAX_CUSTOMERS 1000
+#define MAX_CUSTOMERS 500
 
 // Enums for item types
 typedef enum {

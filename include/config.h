@@ -40,6 +40,8 @@ typedef struct {
     int baker_time_max;
     int customer_arrival_min;
     int customer_arrival_max;
+    int customer_batch_min;
+    int customer_batch_max;
     int customer_patience;
     int quality_threshold;
     double complaint_probability;

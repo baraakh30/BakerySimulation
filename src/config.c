@@ -200,6 +200,14 @@ int load_config(const char *filename, BakeryConfig *config)
             {
                 config->customer_arrival_max = atoi(ptr);
             }
+            else if (strcmp(key, "customer_batch_min") == 0)
+            {
+                config->customer_batch_min = atoi(ptr);
+            }
+            else if (strcmp(key, "customer_batch_max") == 0)
+            {
+                config->customer_batch_max = atoi(ptr);
+            }
             else if (strcmp(key, "customer_patience") == 0)
             {
                 config->customer_patience = atoi(ptr);
